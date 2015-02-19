@@ -4,7 +4,21 @@ require "TermExtractor.php";
 require "cleanhtml.php";
 
 $json = array();
-if (!isset($_POST['source']) or !isset($_POST['article'])) {
+
+$hasSource = false;
+if (isset($_POST['source'])) {
+    $hasSource = true;
+} elseif (isset($_POST['sourceurl'])) {
+    /* download the source, set the _POST var, and set the source as being there... */
+    $_POST['source'] = curl($_GET['sourceurl']);
+    $hasSource = true;
+}
+
+if (isset($_GET['articleurl'])) {
+    $_POST['article'] = curl($_GET['sourceurl']);
+}
+
+if (!$hasSource or !isset($_POST['article'])) {
     json_error(428, "Incorrect arguments. Send me your information please!");
 }
 
@@ -166,14 +180,17 @@ function getTerms($text, $limit = true, $sortByOccurance = false) {
     return $keywords;
 }
 
-function ngram($string, $n) {
+function ngram($string, $n = null) {
+    if (is_null($n))
+        $n = 2;
+
     // Split up all the words...
     $words = explode(' ', $string);
     $numberWords = count($words);
 
     $ngrams = array();
     for ($i = 0; $i < $numberWords; $i++) {
-        $ngrams[] = implode(array_slice($words, $i, 2), " ");
+        $ngrams[] = implode(array_slice($words, $i, $n), " ");
     }
 
     return $ngrams;
@@ -267,5 +284,24 @@ function removeAccents($str) {
   return str_replace($a, $b, $str);
 }
 
-?>
+function curl($url) {
+    $_chc = array(
+        CURLOPT_HEADER => false,
+        CURLOPT_RETURNTRANSFER => 1,
+        CURLOPT_FOLLOWLOCATION => 1,
+        CURLOPT_MAXCONNECTS => 15,
+        CURLOPT_CONNECTTIMEOUT => 30,
+        CURLOPT_TIMEOUT => 360,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_2) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.52 Safari/537.17'
+    );
+    $_ch = curl_init();
+    curl_setopt_array($_ch, $_chc);
 
+    curl_setopt($_ch, CURLOPT_URL, $url);
+    $data = curl_exec($_ch);
+    if (!$data) {
+        throw new Exception (curl_error($_ch));
+    }
+
+    return $data;
+}
